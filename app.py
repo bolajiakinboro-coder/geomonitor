@@ -53,10 +53,13 @@ SITES = {
 }
 
 BASEMAPS = {
-    "Satellite (Google)":   {"tiles": "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", "attr": "Google Satellite"},
-    "Satellite + Labels":   {"tiles": "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", "attr": "Google Hybrid"},
-    "Dark (Night)":         {"tiles": "CartoDB dark_matter",  "attr": "CartoDB"},
-    "Street Map":           {"tiles": "OpenStreetMap",        "attr": "OpenStreetMap"},
+    "Esri World Imagery (Most Recent)": {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Esri World Imagery"},
+    "Esri Clarity (High Res)":          {"tiles": "https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Esri Clarity"},
+    "Bing Aerial":                      {"tiles": "https://ecn.t3.tiles.virtualearth.net/tiles/a{q}.jpeg?g=1", "attr": "Microsoft Bing"},
+    "Satellite (Google)":               {"tiles": "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", "attr": "Google Satellite"},
+    "Satellite + Labels (Google)":      {"tiles": "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", "attr": "Google Hybrid"},
+    "Dark (Night)":                     {"tiles": "CartoDB dark_matter", "attr": "CartoDB"},
+    "Street Map":                       {"tiles": "OpenStreetMap",       "attr": "OpenStreetMap"},
 }
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -194,7 +197,11 @@ elif view == "Asese Campus":
             show_b = st.toggle("Show Building Footprints", value=True)
             load_b = st.button("Load Buildings")
         with col2:
-            st.markdown('<div class="info-box">🛰 <b>Google Satellite</b> shows actual rooftops at sub-meter clarity.<br>🏢 <b>Orange polygons</b> = AI-mapped building footprints from OSM + Microsoft Africa dataset. Tap any footprint for details.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="info-box">🛰 <b>Esri World Imagery</b> is the most recently updated free source for Nigeria — try it first.<br>🏢 <b>Orange polygons</b> = AI-mapped building footprints. Tap any polygon for name and floor count.<br>⚠️ Google tiles may be 3-5 years old for this area.</div>', unsafe_allow_html=True)
+            st.markdown("**Open in current imagery viewers:**")
+            ca2, cb2 = st.columns(2)
+            ca2.link_button("🌍 Google Earth (current)", "https://earth.google.com/web/@6.760,3.431,50a,800d,35y,0h,0t,0r")
+            cb2.link_button("🛰 Sentinel Hub EO Browser", "https://apps.sentinel-hub.com/eo-browser/?zoom=15&lat=6.760&lng=3.431&themeId=DEFAULT-THEME&datasetId=S2L2A&fromTime=2025-06-01&toTime=2026-03-28&layerId=1_TRUE_COLOR")
         if "bdata" not in st.session_state: st.session_state.bdata = None
         if "bcount" not in st.session_state: st.session_state.bcount = 0
         if load_b:
