@@ -5,660 +5,337 @@ import pystac_client
 import planetary_computer
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 from datetime import datetime, timedelta
 import rasterio
-from rasterio.io import MemoryFile
 import requests
-from io import BytesIO
-import json
-import base64
-from fpdf import FPDF
-import tempfile
-import os
 
-# ─── PAGE CONFIG ──────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="VorianCorelli GeoMonitor",
-    page_icon="🌍",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="VorianCorelli GeoMonitor", page_icon="🌍", layout="wide", initial_sidebar_state="expanded")
 
-# ─── STYLES ──────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
     [data-testid="stAppViewContainer"] { background-color: #0a1628; }
     [data-testid="stSidebar"] { background-color: #0d1f3c; }
     .main-title { color: #C9A84C; font-size: 2rem; font-weight: 800; letter-spacing: 1px; }
     .sub-title { color: #7a9cc4; font-size: 0.95rem; margin-top: -10px; }
-    .metric-card {
-        background: linear-gradient(135deg, #0d1f3c 0%, #152a4a 100%);
-        border: 1px solid #C9A84C44;
-        border-radius: 10px;
-        padding: 16px 20px;
-        margin: 6px 0;
-    }
+    .metric-card { background: linear-gradient(135deg, #0d1f3c 0%, #152a4a 100%); border: 1px solid #C9A84C44; border-radius: 10px; padding: 16px 20px; margin: 6px 0; }
     .metric-value { color: #C9A84C; font-size: 1.6rem; font-weight: 700; }
     .metric-label { color: #7a9cc4; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1px; }
-    .site-badge {
-        display: inline-block;
-        background: #C9A84C22;
-        border: 1px solid #C9A84C;
-        color: #C9A84C;
-        border-radius: 20px;
-        padding: 2px 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        margin-bottom: 8px;
-    }
-    .alert-box {
-        background: #ff4b4b22;
-        border-left: 4px solid #ff4b4b;
-        padding: 10px 16px;
-        border-radius: 0 8px 8px 0;
-        color: #ffaaaa;
-        font-size: 0.87rem;
-    }
-    .ok-box {
-        background: #00c85322;
-        border-left: 4px solid #00c853;
-        padding: 10px 16px;
-        border-radius: 0 8px 8px 0;
-        color: #aaffcc;
-        font-size: 0.87rem;
-    }
+    .site-badge { display: inline-block; background: #C9A84C22; border: 1px solid #C9A84C; color: #C9A84C; border-radius: 20px; padding: 2px 12px; font-size: 0.75rem; font-weight: 600; margin-bottom: 8px; }
+    .alert-box { background: #ff4b4b22; border-left: 4px solid #ff4b4b; padding: 10px 16px; border-radius: 0 8px 8px 0; color: #ffaaaa; font-size: 0.87rem; }
+    .ok-box { background: #00c85322; border-left: 4px solid #00c853; padding: 10px 16px; border-radius: 0 8px 8px 0; color: #aaffcc; font-size: 0.87rem; }
+    .info-box { background: #1a6fcc22; border-left: 4px solid #4a9fec; padding: 10px 16px; border-radius: 0 8px 8px 0; color: #aaccff; font-size: 0.87rem; margin: 8px 0; }
     h1, h2, h3 { color: #e8eef5 !important; }
     .stTabs [data-baseweb="tab"] { color: #7a9cc4; }
     .stTabs [aria-selected="true"] { color: #C9A84C !important; border-bottom-color: #C9A84C !important; }
-    div[data-testid="stSelectbox"] label { color: #7a9cc4; }
-    .stButton button {
-        background: linear-gradient(135deg, #C9A84C, #a07830);
-        color: #0a1628;
-        font-weight: 700;
-        border: none;
-        border-radius: 8px;
-    }
+    .stButton button { background: linear-gradient(135deg, #C9A84C, #a07830); color: #0a1628; font-weight: 700; border: none; border-radius: 8px; }
     .footer-note { color: #3a5a7c; font-size: 0.72rem; margin-top: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
-# ─── SITE DEFINITIONS ────────────────────────────────────────────────────────
 SITES = {
     "asese": {
-        "name": "Christ Embassy Asese Campus",
-        "label": "LoveWorld HQ",
-        "lat": 6.7600,
-        "lon": 3.4310,
-        "zoom": 15,
-        "color": "#C9A84C",
-        "icon": "⛪",
+        "name": "Christ Embassy Asese Campus", "label": "LoveWorld HQ",
+        "lat": 6.7600, "lon": 3.4310, "zoom": 16, "color": "#C9A84C", "icon": "⛪",
         "bbox": [3.4260, 6.7550, 3.4370, 6.7660],
         "zones": [
-            {"name": "Omnia Hotels & Suites",      "lat": 6.7624, "lon": 3.4300, "type": "infrastructure"},
-            {"name": "Pinnacle Mall",               "lat": 6.7632, "lon": 3.4282, "type": "infrastructure"},
-            {"name": "Meeting Bays (1–4)",          "lat": 6.7577, "lon": 3.4326, "type": "event"},
-            {"name": "Crystal Palace / Healing Dome","lat": 6.7580, "lon": 3.4295, "type": "event"},
-            {"name": "Amphitheater (20,000 cap)",   "lat": 6.7570, "lon": 3.4340, "type": "event"},
+            {"name": "Omnia Hotels & Suites",        "lat": 6.7624, "lon": 3.4300, "type": "infrastructure"},
+            {"name": "Pinnacle Mall",                 "lat": 6.7632, "lon": 3.4282, "type": "infrastructure"},
+            {"name": "Meeting Bays (1-4)",            "lat": 6.7577, "lon": 3.4326, "type": "event"},
+            {"name": "Crystal Palace / Healing Dome", "lat": 6.7580, "lon": 3.4295, "type": "event"},
+            {"name": "Amphitheater (20,000 cap)",     "lat": 6.7570, "lon": 3.4340, "type": "event"},
         ],
         "objectives": ["Infrastructure tracking", "Green cover", "Perimeter security"]
     },
-    "agrifi_ogun": {
-        "name": "AgriFI — Ogun State Zone",
-        "label": "SWAgCo / AgriFI",
-        "lat": 7.1600,
-        "lon": 3.3470,
-        "zoom": 11,
-        "color": "#4CAF50",
-        "icon": "🌾",
-        "bbox": [3.2000, 7.0000, 3.5000, 7.3000],
-        "zones": [],
-        "objectives": ["Crop health", "Change detection", "Boundary monitoring", "Input verification"]
-    },
-    "agrifi_ekiti": {
-        "name": "AgriFI — Ekiti State Zone",
-        "label": "SWAgCo / AgriFI",
-        "lat": 7.7190,
-        "lon": 5.3110,
-        "zoom": 11,
-        "color": "#4CAF50",
-        "icon": "🌾",
-        "bbox": [5.1000, 7.5000, 5.5000, 7.9000],
-        "zones": [],
-        "objectives": ["Crop health", "Change detection", "Boundary monitoring", "Input verification"]
-    },
-    "agrifi_oyo": {
-        "name": "AgriFI — Oyo State Zone",
-        "label": "SWAgCo / AgriFI",
-        "lat": 7.8500,
-        "lon": 3.9300,
-        "zoom": 11,
-        "color": "#4CAF50",
-        "icon": "🌾",
-        "bbox": [3.7000, 7.6000, 4.1000, 8.1000],
-        "zones": [],
-        "objectives": ["Crop health", "Change detection", "Boundary monitoring", "Input verification"]
-    },
-    "agrifi_ondo": {
-        "name": "AgriFI — Ondo State Zone",
-        "label": "SWAgCo / AgriFI",
-        "lat": 7.2500,
-        "lon": 5.1950,
-        "zoom": 11,
-        "color": "#4CAF50",
-        "icon": "🌾",
-        "bbox": [4.9000, 7.0000, 5.4000, 7.5000],
-        "zones": [],
-        "objectives": ["Crop health", "Change detection", "Boundary monitoring", "Input verification"]
-    }
+    "agrifi_ogun":  {"name": "AgriFI - Ogun State",  "lat": 7.1600, "lon": 3.3470, "zoom": 11, "color": "#4CAF50", "bbox": [3.2000, 7.0000, 3.5000, 7.3000], "zones": []},
+    "agrifi_ekiti": {"name": "AgriFI - Ekiti State", "lat": 7.7190, "lon": 5.3110, "zoom": 11, "color": "#4CAF50", "bbox": [5.1000, 7.5000, 5.5000, 7.9000], "zones": []},
+    "agrifi_oyo":   {"name": "AgriFI - Oyo State",   "lat": 7.8500, "lon": 3.9300, "zoom": 11, "color": "#4CAF50", "bbox": [3.7000, 7.6000, 4.1000, 8.1000], "zones": []},
+    "agrifi_ondo":  {"name": "AgriFI - Ondo State",  "lat": 7.2500, "lon": 5.1950, "zoom": 11, "color": "#4CAF50", "bbox": [4.9000, 7.0000, 5.4000, 7.5000], "zones": []},
 }
 
-# ─── STAC / PLANETARY COMPUTER ──────────────────────────────────────────────
-@st.cache_data(ttl=3600, show_spinner=False)
-def search_sentinel2(bbox, date_start, date_end, cloud_cover=30):
+BASEMAPS = {
+    "Satellite (Google)":   {"tiles": "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", "attr": "Google Satellite"},
+    "Satellite + Labels":   {"tiles": "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", "attr": "Google Hybrid"},
+    "Dark (Night)":         {"tiles": "CartoDB dark_matter",  "attr": "CartoDB"},
+    "Street Map":           {"tiles": "OpenStreetMap",        "attr": "OpenStreetMap"},
+}
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def fetch_buildings(lat, lon, radius_deg=0.010):
+    s = lat - radius_deg; n = lat + radius_deg
+    w = lon - radius_deg; e = lon + radius_deg
+    query = f"""[out:json][timeout:25];(way["building"]({s},{w},{n},{e});relation["building"]({s},{w},{n},{e}););out body;>;out skel qt;"""
     try:
-        catalog = pystac_client.Client.open(
-            "https://planetarycomputer.microsoft.com/api/stac/v1",
-            modifier=planetary_computer.sign_inplace,
-        )
-        search = catalog.search(
-            collections=["sentinel-2-l2a"],
-            bbox=bbox,
-            datetime=f"{date_start}/{date_end}",
-            query={"eo:cloud_cover": {"lt": cloud_cover}},
-        )
-        items = list(search.get_items())
+        r = requests.post("https://overpass-api.de/api/interpreter", data={"data": query}, timeout=30)
+        return r.json() if r.status_code == 200 else None
+    except:
+        return None
+
+def parse_buildings(osm_data):
+    if not osm_data: return [], 0
+    nodes = {el["id"]: (el["lat"], el["lon"]) for el in osm_data.get("elements", []) if el["type"] == "node"}
+    buildings = []
+    for el in osm_data.get("elements", []):
+        if el["type"] == "way" and "building" in el.get("tags", {}):
+            coords = [nodes[n] for n in el.get("nodes", []) if n in nodes]
+            if len(coords) >= 3:
+                buildings.append({"coords": coords, "name": el["tags"].get("name", el["tags"].get("building", "Building")), "levels": el["tags"].get("building:levels", "?")})
+    return buildings, len(buildings)
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def search_s2(bbox, d1, d2, cloud=30):
+    try:
+        cat = pystac_client.Client.open("https://planetarycomputer.microsoft.com/api/stac/v1", modifier=planetary_computer.sign_inplace)
+        items = list(cat.search(collections=["sentinel-2-l2a"], bbox=bbox, datetime=f"{d1}/{d2}", query={"eo:cloud_cover": {"lt": cloud}}).get_items())
         return items
-    except Exception as e:
+    except:
         return []
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def compute_ndvi_from_item(_item, bbox):
+def compute_ndvi(_item, bbox):
     try:
         item = planetary_computer.sign(_item)
-        red_url  = item.assets["B04"].href
-        nir_url  = item.assets["B08"].href
-
-        def read_band(url, bbox):
+        def read(url):
             with rasterio.open(url) as src:
-                from rasterio.crs import CRS
                 from rasterio.warp import transform_bounds
-                bounds = transform_bounds("EPSG:4326", src.crs, *bbox)
-                window = src.window(*bounds)
-                data = src.read(1, window=window, out_shape=(256, 256),
-                                resampling=rasterio.enums.Resampling.bilinear)
-                return data.astype(float)
-
-        red = read_band(red_url, bbox)
-        nir = read_band(nir_url, bbox)
-        ndvi = np.where((nir + red) == 0, 0, (nir - red) / (nir + red))
-        ndvi = np.clip(ndvi, -1, 1)
-        return ndvi, item.datetime.strftime("%Y-%m-%d")
-    except Exception as e:
+                b = transform_bounds("EPSG:4326", src.crs, *bbox)
+                w = src.window(*b)
+                return src.read(1, window=w, out_shape=(256,256), resampling=rasterio.enums.Resampling.bilinear).astype(float)
+        r = read(item.assets["B04"].href); n = read(item.assets["B08"].href)
+        ndvi = np.where((n+r)==0, 0, (n-r)/(n+r))
+        return np.clip(ndvi,-1,1), item.datetime.strftime("%Y-%m-%d")
+    except:
         return None, None
 
-def ndvi_figure(ndvi_array, title, site_name):
-    fig, ax = plt.subplots(figsize=(7, 5))
-    fig.patch.set_facecolor("#0a1628")
-    ax.set_facecolor("#0a1628")
-    cmap = plt.cm.RdYlGn
-    im = ax.imshow(ndvi_array, cmap=cmap, vmin=-0.2, vmax=0.8)
-    cbar = plt.colorbar(im, ax=ax, fraction=0.03, pad=0.04)
-    cbar.set_label("NDVI", color="white", fontsize=9)
-    cbar.ax.yaxis.set_tick_params(color="white")
-    plt.setp(cbar.ax.yaxis.get_ticklabels(), color="white")
-    ax.set_title(f"{site_name}\n{title}", color="#C9A84C", fontsize=11, fontweight="bold")
-    ax.axis("off")
-    plt.tight_layout()
-    return fig
+def ndvi_fig(arr, title, name):
+    fig, ax = plt.subplots(figsize=(7,5)); fig.patch.set_facecolor("#0a1628"); ax.set_facecolor("#0a1628")
+    im = ax.imshow(arr, cmap=plt.cm.RdYlGn, vmin=-0.2, vmax=0.8)
+    cb = plt.colorbar(im, ax=ax, fraction=0.03, pad=0.04); cb.set_label("NDVI", color="white")
+    cb.ax.yaxis.set_tick_params(color="white"); plt.setp(cb.ax.yaxis.get_ticklabels(), color="white")
+    ax.set_title(f"{name}\n{title}", color="#C9A84C", fontsize=11, fontweight="bold"); ax.axis("off")
+    plt.tight_layout(); return fig
 
-def change_figure(ndvi_before, ndvi_after, site_name):
-    diff = ndvi_after - ndvi_before
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-    fig.patch.set_facecolor("#0a1628")
-    for ax in axes:
-        ax.set_facecolor("#0a1628")
-    axes[0].imshow(ndvi_before, cmap="RdYlGn", vmin=-0.2, vmax=0.8)
-    axes[0].set_title("Before", color="#7a9cc4", fontsize=10); axes[0].axis("off")
-    axes[1].imshow(ndvi_after, cmap="RdYlGn", vmin=-0.2, vmax=0.8)
-    axes[1].set_title("After", color="#7a9cc4", fontsize=10); axes[1].axis("off")
-    im = axes[2].imshow(diff, cmap="RdBu", vmin=-0.4, vmax=0.4)
-    axes[2].set_title("Change (NDVI Δ)", color="#C9A84C", fontsize=10); axes[2].axis("off")
-    cbar = plt.colorbar(im, ax=axes[2], fraction=0.04)
-    cbar.set_label("Δ NDVI", color="white", fontsize=8)
-    cbar.ax.yaxis.set_tick_params(color="white")
-    plt.setp(cbar.ax.yaxis.get_ticklabels(), color="white")
-    fig.suptitle(f"Change Detection — {site_name}", color="#C9A84C", fontsize=12, fontweight="bold")
-    plt.tight_layout()
-    return fig
+def change_fig(b, a, title):
+    diff = a - b; fig, axes = plt.subplots(1, 3, figsize=(14,4)); fig.patch.set_facecolor("#0a1628")
+    for ax in axes: ax.set_facecolor("#0a1628")
+    axes[0].imshow(b, cmap="RdYlGn", vmin=-0.2, vmax=0.8); axes[0].set_title("Before", color="#7a9cc4"); axes[0].axis("off")
+    axes[1].imshow(a, cmap="RdYlGn", vmin=-0.2, vmax=0.8); axes[1].set_title("After",  color="#7a9cc4"); axes[1].axis("off")
+    im = axes[2].imshow(diff, cmap="RdBu", vmin=-0.4, vmax=0.4); axes[2].set_title("Change", color="#C9A84C"); axes[2].axis("off")
+    cb = plt.colorbar(im, ax=axes[2], fraction=0.04); cb.set_label("NDVI", color="white")
+    cb.ax.yaxis.set_tick_params(color="white"); plt.setp(cb.ax.yaxis.get_ticklabels(), color="white")
+    fig.suptitle(title, color="#C9A84C", fontsize=12, fontweight="bold"); plt.tight_layout(); return fig
 
-def ndvi_stats(ndvi_array):
-    valid = ndvi_array[ndvi_array > -0.5]
-    if len(valid) == 0:
-        return {}
-    return {
-        "mean": float(np.mean(valid)),
-        "median": float(np.median(valid)),
-        "healthy_pct": float(np.mean(valid > 0.4) * 100),
-        "stressed_pct": float(np.mean((valid > 0.1) & (valid <= 0.4)) * 100),
-        "bare_pct": float(np.mean(valid <= 0.1) * 100),
-    }
+def stats(arr):
+    v = arr[arr > -0.5]
+    return {"mean": float(np.mean(v)), "healthy": float(np.mean(v>0.4)*100), "stressed": float(np.mean((v>0.1)&(v<=0.4))*100), "bare": float(np.mean(v<=0.1)*100)} if len(v) else {}
 
-# ─── OVERVIEW MAP ─────────────────────────────────────────────────────────────
-def build_overview_map():
-    m = folium.Map(
-        location=[7.1, 4.0],
-        zoom_start=7,
-        tiles="CartoDB dark_matter"
-    )
-    # Asese
-    s = SITES["asese"]
-    folium.Marker(
-        [s["lat"], s["lon"]],
-        popup=folium.Popup(f"<b>{s['name']}</b><br>Monitoring: {', '.join(s['objectives'])}", max_width=250),
-        tooltip=s["name"],
-        icon=folium.Icon(color="orange", icon="church", prefix="fa")
-    ).add_to(m)
-    # Asese zone markers
-    for z in s["zones"]:
-        folium.CircleMarker(
-            [z["lat"], z["lon"]],
-            radius=6, color="#C9A84C", fill=True, fill_opacity=0.7,
-            tooltip=z["name"]
-        ).add_to(m)
-
-    # AgriFI zones
-    agrifi_sites = ["agrifi_ogun", "agrifi_ekiti", "agrifi_oyo", "agrifi_ondo"]
-    for sk in agrifi_sites:
-        s = SITES[sk]
-        folium.Marker(
-            [s["lat"], s["lon"]],
-            popup=folium.Popup(f"<b>{s['name']}</b><br>Monitoring: {', '.join(s['objectives'])}", max_width=250),
-            tooltip=s["name"],
-            icon=folium.Icon(color="green", icon="leaf", prefix="fa")
-        ).add_to(m)
-
+def make_map(lat, lon, zoom, basemap_key, zones=[], bbox=None, buildings=None, show_bldgs=False):
+    bm = BASEMAPS[basemap_key]
+    if bm["tiles"] in ["CartoDB dark_matter", "OpenStreetMap"]:
+        m = folium.Map(location=[lat,lon], zoom_start=zoom, tiles=bm["tiles"])
+    else:
+        m = folium.Map(location=[lat,lon], zoom_start=zoom, tiles=None)
+        folium.TileLayer(tiles=bm["tiles"], attr=bm["attr"], name=basemap_key, max_zoom=21).add_to(m)
+    for z in zones:
+        c = "#C9A84C" if z["type"]=="infrastructure" else "#7EC8E3"
+        folium.CircleMarker([z["lat"],z["lon"]], radius=10, color=c, fill=True, fill_opacity=0.85, tooltip=z["name"], popup=folium.Popup(f"<b>{z['name']}</b>", max_width=200)).add_to(m)
+    if bbox:
+        folium.Rectangle(bounds=[[bbox[1],bbox[0]],[bbox[3],bbox[2]]], color="#C9A84C", fill=False, weight=2, dash_array="8 4", tooltip="Monitoring perimeter").add_to(m)
+    if show_bldgs and buildings:
+        blist, _ = parse_buildings(buildings)
+        for b in blist:
+            folium.Polygon(locations=b["coords"], color="#FF6B35", fill=True, fill_color="#FF6B35", fill_opacity=0.45, weight=1.5, tooltip=f"Building: {b['name']} | Floors: {b['levels']}").add_to(m)
     folium.LayerControl().add_to(m)
     return m
 
-# ─── SITE MAP ─────────────────────────────────────────────────────────────────
-def build_site_map(site_key):
-    s = SITES[site_key]
-    m = folium.Map(location=[s["lat"], s["lon"]], zoom_start=s["zoom"], tiles="CartoDB dark_matter")
-    for z in s.get("zones", []):
-        color = "#C9A84C" if z["type"] == "infrastructure" else "#7EC8E3"
-        folium.CircleMarker(
-            [z["lat"], z["lon"]],
-            radius=10, color=color, fill=True, fill_opacity=0.8,
-            tooltip=z["name"],
-            popup=folium.Popup(f"<b>{z['name']}</b><br>Type: {z['type']}", max_width=200)
-        ).add_to(m)
-    # Bounding box
-    bb = s["bbox"]
-    folium.Rectangle(
-        bounds=[[bb[1], bb[0]], [bb[3], bb[2]]],
-        color=s["color"], fill=False, weight=2, dash_array="8 4",
-        tooltip="Monitoring boundary"
-    ).add_to(m)
-    return m
-
-# ─── SIDEBAR ─────────────────────────────────────────────────────────────────
+# SIDEBAR
 with st.sidebar:
     st.markdown('<div class="main-title">🌍 GeoMonitor</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-title">VorianCorelli — Satellite Intelligence</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-title">VorianCorelli - Satellite Intelligence</div>', unsafe_allow_html=True)
     st.markdown("---")
-
-    view = st.radio("Navigation", ["📡 Overview", "⛪ Asese Campus", "🌾 AgriFI Land", "📋 Reports"], label_visibility="collapsed")
-
+    view = st.radio("Nav", ["Overview", "Asese Campus", "AgriFI Land", "Reports"], label_visibility="collapsed")
     st.markdown("---")
-    st.markdown("**Data Source**")
-    st.markdown("🛰 Sentinel-2 L2A via Microsoft Planetary Computer — Free, 10m resolution, 5-day refresh")
+    st.markdown("**Data Sources**")
+    st.markdown("🛰 Sentinel-2 — Microsoft Planetary Computer")
+    st.markdown("🏢 Buildings — OSM + Microsoft Africa AI")
+    st.markdown("🗺 Imagery — Google Satellite")
     st.markdown("---")
-    st.markdown("**Sites Active**")
-    st.markdown("✅ Christ Embassy Asese, Ogun State")
-    st.markdown("✅ AgriFI — Ogun, Ekiti, Oyo, Ondo")
-    st.markdown("---")
-    st.markdown('<div class="footer-note">VorianCorelli Limited · AgriFI · Toronet<br>Powered by GeoAI + Sentinel-2</div>', unsafe_allow_html=True)
+    st.markdown("✅ Christ Embassy Asese")
+    st.markdown("✅ AgriFI — 4 State Zones")
+    st.markdown('<div class="footer-note">VorianCorelli · AgriFI · Toronet</div>', unsafe_allow_html=True)
 
-# ─── MAIN CONTENT ─────────────────────────────────────────────────────────────
-
-# ══ OVERVIEW ══
-if view == "📡 Overview":
+# OVERVIEW
+if view == "Overview":
     st.markdown('<div class="main-title">Satellite Monitoring Dashboard</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-title">VorianCorelli — Asese Campus + AgriFI Land (Southwest Nigeria)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-title">VorianCorelli — Asese Campus + AgriFI Land</div>', unsafe_allow_html=True)
     st.markdown("---")
+    c1,c2,c3,c4 = st.columns(4)
+    for col, val, lbl in [(c1,"2","Sites Monitored"),(c2,"15,000 ha","AgriFI Land"),(c3,"5 days","Sentinel-2 Refresh"),(c4,"10m","Resolution")]:
+        with col: st.markdown(f'<div class="metric-card"><div class="metric-value">{val}</div><div class="metric-label">{lbl}</div></div>', unsafe_allow_html=True)
+    m = folium.Map(location=[7.1,4.0], zoom_start=7, tiles="CartoDB dark_matter")
+    s = SITES["asese"]
+    folium.Marker([s["lat"],s["lon"]], popup=s["name"], tooltip=s["name"], icon=folium.Icon(color="orange",icon="church",prefix="fa")).add_to(m)
+    for sk in ["agrifi_ogun","agrifi_ekiti","agrifi_oyo","agrifi_ondo"]:
+        s2 = SITES[sk]; folium.Marker([s2["lat"],s2["lon"]], popup=s2["name"], tooltip=s2["name"], icon=folium.Icon(color="green",icon="leaf",prefix="fa")).add_to(m)
+    st.markdown("### All Sites"); st_folium(m, width=None, height=500, returned_objects=[])
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.markdown('<div class="metric-card"><div class="metric-value">2</div><div class="metric-label">Sites Monitored</div></div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown('<div class="metric-card"><div class="metric-value">15,000 ha</div><div class="metric-label">AgriFI Land Area</div></div>', unsafe_allow_html=True)
-    with col3:
-        st.markdown('<div class="metric-card"><div class="metric-value">5 days</div><div class="metric-label">Sentinel-2 Refresh</div></div>', unsafe_allow_html=True)
-    with col4:
-        st.markdown('<div class="metric-card"><div class="metric-value">10m</div><div class="metric-label">Resolution</div></div>', unsafe_allow_html=True)
-
-    st.markdown("### All Sites — Overview Map")
-    overview_map = build_overview_map()
-    st_folium(overview_map, width=None, height=500, returned_objects=[])
-
-    st.markdown("### Site Status")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown('<div class="site-badge">⛪ ASESE CAMPUS</div>', unsafe_allow_html=True)
-        st.markdown('<div class="ok-box">✅ Infrastructure monitoring active — 5 zone anchors confirmed</div>', unsafe_allow_html=True)
-        st.markdown('<div class="ok-box">✅ Vegetation index tracking active</div>', unsafe_allow_html=True)
-        st.markdown('<div class="ok-box">✅ Perimeter boundary set — 660m N-S span</div>', unsafe_allow_html=True)
-    with c2:
-        st.markdown('<div class="site-badge">🌾 AGRIFI LAND</div>', unsafe_allow_html=True)
-        st.markdown('<div class="ok-box">✅ 4 state zones active — Ogun, Ekiti, Oyo, Ondo</div>', unsafe_allow_html=True)
-        st.markdown('<div class="ok-box">✅ NDVI crop health monitoring active</div>', unsafe_allow_html=True)
-        st.markdown('<div class="alert-box">⚠️ Plot-level coordinates pending from SWAgCo — using state zone proxies</div>', unsafe_allow_html=True)
-
-# ══ ASESE CAMPUS ══
-elif view == "⛪ Asese Campus":
-    st.markdown('<div class="main-title">⛪ Christ Embassy Asese Campus</div>', unsafe_allow_html=True)
+# ASESE CAMPUS
+elif view == "Asese Campus":
+    st.markdown('<div class="main-title">Christ Embassy Asese Campus</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-title">Lagos-Ibadan Expressway, Moba, Ogun State · GPS: QC5M+935</div>', unsafe_allow_html=True)
     st.markdown("---")
-
-    tab1, tab2, tab3 = st.tabs(["🗺 Site Map", "🌿 Vegetation Index", "🔍 Change Detection"])
+    s = SITES["asese"]
+    tab1, tab2, tab3, tab4 = st.tabs(["🏢 Buildings & Satellite", "🌿 Vegetation (NDVI)", "🔍 Change Detection", "📐 Zone Map"])
 
     with tab1:
-        st.markdown("#### Campus Zone Map")
-        st.caption("Confirmed GPS anchors from satellite verification · March 2026")
-        site_map = build_site_map("asese")
-        st_folium(site_map, width=None, height=450, returned_objects=[])
-        st.markdown("**Zone Legend:**")
-        cols = st.columns(5)
-        zones = SITES["asese"]["zones"]
-        for i, z in enumerate(zones):
-            with cols[i % 5]:
-                color = "🟡" if z["type"] == "infrastructure" else "🔵"
-                st.markdown(f"{color} {z['name']}")
+        st.markdown("#### Campus Buildings — Satellite View")
+        col1, col2 = st.columns([1,2])
+        with col1:
+            bm_choice = st.selectbox("Base Map", list(BASEMAPS.keys()), index=0)
+            show_b = st.toggle("Show Building Footprints", value=True)
+            load_b = st.button("Load Buildings")
+        with col2:
+            st.markdown('<div class="info-box">🛰 <b>Google Satellite</b> shows actual rooftops at sub-meter clarity.<br>🏢 <b>Orange polygons</b> = AI-mapped building footprints from OSM + Microsoft Africa dataset. Tap any footprint for details.</div>', unsafe_allow_html=True)
+        if "bdata" not in st.session_state: st.session_state.bdata = None
+        if "bcount" not in st.session_state: st.session_state.bcount = 0
+        if load_b:
+            with st.spinner("Fetching building footprints..."):
+                st.session_state.bdata = fetch_buildings(s["lat"], s["lon"])
+                if st.session_state.bdata:
+                    _, st.session_state.bcount = parse_buildings(st.session_state.bdata)
+        m = make_map(s["lat"], s["lon"], s["zoom"], bm_choice, s["zones"], s["bbox"], st.session_state.bdata if show_b else None, show_b)
+        st_folium(m, width=None, height=530, returned_objects=[])
+        if show_b and st.session_state.bcount > 0:
+            st.markdown(f'<div class="ok-box">Buildings loaded: <b>{st.session_state.bcount} structures</b> mapped on campus. Tap any orange polygon for details.</div>', unsafe_allow_html=True)
+        st.markdown("**Legend:** 🟡 Infrastructure &nbsp;&nbsp; 🔵 Event zones &nbsp;&nbsp; 🟠 Building footprints")
 
     with tab2:
         st.markdown("#### Vegetation Cover Index (NDVI)")
-        st.caption("Tracks green cover health across campus — important for environmental compliance and campus aesthetics")
-
-        col_a, col_b = st.columns([1, 2])
-        with col_a:
-            months_back = st.slider("Months of imagery to search", 1, 6, 2)
-            cloud_pct = st.slider("Max cloud cover %", 10, 60, 30)
-            run_ndvi = st.button("🛰 Fetch Latest NDVI")
-
-        with col_b:
-            if run_ndvi:
-                date_end = datetime.now().strftime("%Y-%m-%d")
-                date_start = (datetime.now() - timedelta(days=30 * months_back)).strftime("%Y-%m-%d")
-                bbox = SITES["asese"]["bbox"]
-
-                with st.spinner("Querying Sentinel-2 archive…"):
-                    items = search_sentinel2(bbox, date_start, date_end, cloud_pct)
-
-                if not items:
-                    st.warning("No imagery found for this period. Try increasing cloud cover % or months.")
+        ca, cb = st.columns([1,2])
+        with ca:
+            mb = st.slider("Months to search", 1, 6, 2)
+            cl = st.slider("Max cloud %", 10, 60, 30)
+            rb = st.button("Fetch NDVI")
+        with cb:
+            if rb:
+                d2 = datetime.now().strftime("%Y-%m-%d"); d1 = (datetime.now()-timedelta(days=30*mb)).strftime("%Y-%m-%d")
+                with st.spinner("Querying Sentinel-2..."):
+                    items = search_s2(s["bbox"], d1, d2, cl)
+                if not items: st.warning("No imagery found.")
                 else:
-                    st.success(f"Found {len(items)} satellite passes. Processing most recent…")
-                    item = items[0]
-                    with st.spinner("Computing NDVI…"):
-                        ndvi, img_date = compute_ndvi_from_item(item, bbox)
-
+                    with st.spinner("Computing NDVI..."):
+                        ndvi, dt = compute_ndvi(items[0], s["bbox"])
                     if ndvi is not None:
-                        stats = ndvi_stats(ndvi)
-                        fig = ndvi_figure(ndvi, f"Image Date: {img_date}", "Asese Campus")
-                        st.pyplot(fig)
-                        plt.close()
-
-                        s1, s2, s3 = st.columns(3)
-                        with s1:
-                            st.metric("Healthy Vegetation", f"{stats.get('healthy_pct', 0):.1f}%", help="NDVI > 0.4")
-                        with s2:
-                            st.metric("Stressed / Sparse", f"{stats.get('stressed_pct', 0):.1f}%", help="0.1 < NDVI ≤ 0.4")
-                        with s3:
-                            st.metric("Bare / Built", f"{stats.get('bare_pct', 0):.1f}%", help="NDVI ≤ 0.1")
-                    else:
-                        st.error("Could not process imagery. Try a different date range.")
-            else:
-                st.info("👆 Set parameters and click Fetch Latest NDVI to load satellite data.")
+                        st.pyplot(ndvi_fig(ndvi, f"Date: {dt}", "Asese Campus")); plt.close()
+                        v = stats(ndvi)
+                        c1,c2,c3 = st.columns(3)
+                        c1.metric("Healthy Vegetation", f"{v.get('healthy',0):.1f}%")
+                        c2.metric("Stressed / Sparse",  f"{v.get('stressed',0):.1f}%")
+                        c3.metric("Bare / Built",       f"{v.get('bare',0):.1f}%")
+                    else: st.error("Processing failed.")
+            else: st.info("Set parameters and click Fetch NDVI.")
 
     with tab3:
-        st.markdown("#### Infrastructure & Perimeter Change Detection")
-        st.caption("Detects new construction, perimeter changes, or vegetation loss between two dates")
-
-        col_x, col_y = st.columns(2)
-        with col_x:
-            before_months = st.slider("'Before' period (months ago)", 3, 12, 6, key="asese_before")
-        with col_y:
-            after_months = st.slider("'After' period (months ago)", 0, 6, 1, key="asese_after")
-        run_change = st.button("🔍 Run Change Detection", key="asese_change")
-
-        if run_change:
-            bbox = SITES["asese"]["bbox"]
-            now = datetime.now()
-
-            before_end = (now - timedelta(days=30 * before_months)).strftime("%Y-%m-%d")
-            before_start = (now - timedelta(days=30 * (before_months + 2))).strftime("%Y-%m-%d")
-            after_end = (now - timedelta(days=30 * after_months)).strftime("%Y-%m-%d")
-            after_start = (now - timedelta(days=30 * (after_months + 2))).strftime("%Y-%m-%d")
-
-            with st.spinner("Fetching before/after imagery…"):
-                items_before = search_sentinel2(bbox, before_start, before_end, 40)
-                items_after  = search_sentinel2(bbox, after_start, after_end, 40)
-
-            if not items_before or not items_after:
-                st.warning("Could not find imagery for one or both periods. Try adjusting the timeframe.")
+        st.markdown("#### Change Detection")
+        c1,c2 = st.columns(2)
+        with c1: bef = st.slider("Before (months ago)", 3, 12, 6)
+        with c2: aft = st.slider("After  (months ago)", 0, 4,  1)
+        if st.button("Run Change Detection"):
+            now = datetime.now(); bbox = s["bbox"]
+            with st.spinner("Fetching imagery pair..."):
+                ib = search_s2(bbox,(now-timedelta(days=30*(bef+2))).strftime("%Y-%m-%d"),(now-timedelta(days=30*bef)).strftime("%Y-%m-%d"),40)
+                ia = search_s2(bbox,(now-timedelta(days=30*(aft+2))).strftime("%Y-%m-%d"),(now-timedelta(days=30*aft)).strftime("%Y-%m-%d"),40)
+            if not ib or not ia: st.warning("Imagery not found for one period.")
             else:
-                with st.spinner("Computing change…"):
-                    ndvi_b, date_b = compute_ndvi_from_item(items_before[0], bbox)
-                    ndvi_a, date_a = compute_ndvi_from_item(items_after[0], bbox)
-
-                if ndvi_b is not None and ndvi_a is not None:
-                    fig = change_figure(ndvi_b, ndvi_a, f"Asese Campus ({date_b} → {date_a})")
-                    st.pyplot(fig)
-                    plt.close()
-
-                    diff = ndvi_a - ndvi_b
-                    loss = float(np.mean(diff < -0.15) * 100)
-                    gain = float(np.mean(diff > 0.15) * 100)
-                    if loss > 5:
-                        st.markdown(f'<div class="alert-box">⚠️ Significant vegetation loss detected: {loss:.1f}% of monitored area shows NDVI decline > 0.15. Possible construction or clearing activity.</div>', unsafe_allow_html=True)
-                    else:
-                        st.markdown(f'<div class="ok-box">✅ No significant vegetation loss detected. Area stable. Gain zones: {gain:.1f}%</div>', unsafe_allow_html=True)
-                else:
-                    st.error("Processing failed. Try different time periods.")
-
-# ══ AGRIFI LAND ══
-elif view == "🌾 AgriFI Land":
-    st.markdown('<div class="main-title">🌾 AgriFI Land — Southwest Nigeria</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-title">SWAgCo Land Utilization Agreement · 15,000 ha across Ogun, Ekiti, Oyo, Ondo States</div>', unsafe_allow_html=True)
-    st.markdown("---")
-
-    zone_options = {
-        "Ogun State": "agrifi_ogun",
-        "Ekiti State": "agrifi_ekiti",
-        "Oyo State":   "agrifi_oyo",
-        "Ondo State":  "agrifi_ondo",
-    }
-    selected_zone_name = st.selectbox("Select Zone", list(zone_options.keys()))
-    selected_zone = zone_options[selected_zone_name]
-    site = SITES[selected_zone]
-
-    tab1, tab2, tab3, tab4 = st.tabs(["🗺 Zone Map", "🌱 Crop Health (NDVI)", "🔄 Change Detection", "📊 Compliance Export"])
-
-    with tab1:
-        st.markdown(f"#### {site['name']}")
-        m = folium.Map(location=[site["lat"], site["lon"]], zoom_start=site["zoom"], tiles="CartoDB dark_matter")
-        bb = site["bbox"]
-        folium.Rectangle(
-            bounds=[[bb[1], bb[0]], [bb[3], bb[2]]],
-            color="#4CAF50", fill=True, fill_opacity=0.1, weight=2,
-            tooltip=f"Monitoring zone — {selected_zone_name}"
-        ).add_to(m)
-        folium.Marker(
-            [site["lat"], site["lon"]],
-            icon=folium.Icon(color="green", icon="leaf", prefix="fa"),
-            tooltip=f"Zone centre — {selected_zone_name}"
-        ).add_to(m)
-        st_folium(m, width=None, height=430, returned_objects=[])
-        st.markdown('<div class="alert-box">⚠️ Zone boundary is a state-level proxy. Precise plot boundaries will replace this once SWAgCo provides GPS coordinates.</div>', unsafe_allow_html=True)
-
-    with tab2:
-        st.markdown("#### Crop Health Index (NDVI)")
-        st.caption("NDVI above 0.4 = healthy vegetation. Used for NIRSAL/AfDB input verification and yield estimation.")
-
-        col_a, col_b = st.columns([1, 2])
-        with col_a:
-            months_back2 = st.slider("Months to search", 1, 6, 2, key=f"ndvi_{selected_zone}")
-            cloud2 = st.slider("Max cloud cover %", 10, 60, 30, key=f"cloud_{selected_zone}")
-            run2 = st.button("🛰 Fetch Crop Health Data", key=f"run_{selected_zone}")
-
-        with col_b:
-            if run2:
-                date_end = datetime.now().strftime("%Y-%m-%d")
-                date_start = (datetime.now() - timedelta(days=30 * months_back2)).strftime("%Y-%m-%d")
-                bbox = site["bbox"]
-
-                with st.spinner("Querying Sentinel-2…"):
-                    items = search_sentinel2(bbox, date_start, date_end, cloud2)
-
-                if not items:
-                    st.warning("No imagery found. Try increasing cloud cover % or months.")
-                else:
-                    st.success(f"Found {len(items)} passes. Using most recent…")
-                    with st.spinner("Computing NDVI…"):
-                        ndvi, img_date = compute_ndvi_from_item(items[0], bbox)
-
-                    if ndvi is not None:
-                        stats = ndvi_stats(ndvi)
-                        fig = ndvi_figure(ndvi, f"Image Date: {img_date}", site["name"])
-                        st.pyplot(fig)
-                        plt.close()
-
-                        c1, c2, c3, c4 = st.columns(4)
-                        c1.metric("Mean NDVI",         f"{stats.get('mean', 0):.3f}")
-                        c2.metric("Healthy Crop",      f"{stats.get('healthy_pct', 0):.1f}%")
-                        c3.metric("Stressed",          f"{stats.get('stressed_pct', 0):.1f}%")
-                        c4.metric("Bare / Fallow",     f"{stats.get('bare_pct', 0):.1f}%")
-
-                        # Compliance status
-                        if stats.get("healthy_pct", 0) > 40:
-                            st.markdown('<div class="ok-box">✅ NIRSAL Compliance: Healthy vegetation cover exceeds 40% threshold. Land utilization verified.</div>', unsafe_allow_html=True)
-                        else:
-                            st.markdown(f'<div class="alert-box">⚠️ Healthy vegetation at {stats.get("healthy_pct", 0):.1f}% — below 40% compliance threshold. Requires field investigation.</div>', unsafe_allow_html=True)
-                    else:
-                        st.error("Processing failed. Try a different date range.")
-            else:
-                st.info("👆 Click 'Fetch Crop Health Data' to load satellite imagery.")
-
-    with tab3:
-        st.markdown("#### Land Use Change Detection")
-        st.caption("Detects encroachment, land clearing, or seasonal crop cycle transitions.")
-
-        c1, c2 = st.columns(2)
-        with c1:
-            bef = st.slider("Before (months ago)", 3, 12, 6, key=f"bef_{selected_zone}")
-        with c2:
-            aft = st.slider("After (months ago)", 0, 4, 1, key=f"aft_{selected_zone}")
-        run_c = st.button("🔄 Run Change Detection", key=f"chg_{selected_zone}")
-
-        if run_c:
-            bbox = site["bbox"]
-            now = datetime.now()
-            before_end   = (now - timedelta(days=30 * bef)).strftime("%Y-%m-%d")
-            before_start = (now - timedelta(days=30 * (bef + 2))).strftime("%Y-%m-%d")
-            after_end    = (now - timedelta(days=30 * aft)).strftime("%Y-%m-%d")
-            after_start  = (now - timedelta(days=30 * (aft + 2))).strftime("%Y-%m-%d")
-
-            with st.spinner("Fetching imagery pair…"):
-                items_b = search_sentinel2(bbox, before_start, before_end, 40)
-                items_a = search_sentinel2(bbox, after_start, after_end, 40)
-
-            if not items_b or not items_a:
-                st.warning("Imagery not available for one period. Adjust the sliders.")
-            else:
-                with st.spinner("Computing change…"):
-                    ndvi_b, date_b = compute_ndvi_from_item(items_b[0], bbox)
-                    ndvi_a, date_a = compute_ndvi_from_item(items_a[0], bbox)
-
-                if ndvi_b is not None and ndvi_a is not None:
-                    fig = change_figure(ndvi_b, ndvi_a, f"{site['name']} ({date_b} → {date_a})")
-                    st.pyplot(fig)
-                    plt.close()
-
-                    diff = ndvi_a - ndvi_b
-                    loss = float(np.mean(diff < -0.20) * 100)
-                    gain = float(np.mean(diff > 0.20) * 100)
-
-                    col_r1, col_r2 = st.columns(2)
-                    col_r1.metric("Vegetation Loss", f"{loss:.1f}%", delta=f"-{loss:.1f}%" if loss > 0 else None, delta_color="inverse")
-                    col_r2.metric("Vegetation Gain", f"{gain:.1f}%", delta=f"+{gain:.1f}%" if gain > 0 else None)
-
-                    if loss > 10:
-                        st.markdown(f'<div class="alert-box">⚠️ ENCROACHMENT ALERT: {loss:.1f}% land cover loss detected. Immediate ground verification recommended. Flag for NIRSAL report.</div>', unsafe_allow_html=True)
-                    else:
-                        st.markdown(f'<div class="ok-box">✅ No significant encroachment detected. Land utilization stable.</div>', unsafe_allow_html=True)
-                else:
-                    st.error("Processing failed. Adjust time periods.")
+                with st.spinner("Computing..."):
+                    nb,db = compute_ndvi(ib[0],bbox); na,da = compute_ndvi(ia[0],bbox)
+                if nb is not None and na is not None:
+                    st.pyplot(change_fig(nb, na, f"Asese Campus ({db} to {da})")); plt.close()
+                    loss = float(np.mean((na-nb)<-0.15)*100)
+                    if loss > 5: st.markdown(f'<div class="alert-box">Vegetation loss: {loss:.1f}% of area. Possible construction or clearing.</div>', unsafe_allow_html=True)
+                    else: st.markdown('<div class="ok-box">No significant change detected. Campus stable.</div>', unsafe_allow_html=True)
 
     with tab4:
-        st.markdown("#### NIRSAL / AfDB Compliance Export")
-        st.caption("Generate a compliance summary for regulatory submission.")
-        st.markdown("**This report will contain:**")
-        st.markdown("- Site identity and GPS coordinates")
-        st.markdown("- Most recent NDVI summary statistics")
-        st.markdown("- Change detection findings")
-        st.markdown("- Sentinel-2 image metadata (date, cloud cover, satellite pass)")
-        st.markdown("- VorianCorelli / AgriFI certification header")
-        st.markdown("")
-        st.markdown('<div class="ok-box">✅ After running NDVI analysis above, a PDF export button will appear here. This report is formatted for NIRSAL and AfDB submission.</div>', unsafe_allow_html=True)
-        st.info("Run NDVI analysis in the Crop Health tab first, then return here to export.")
+        st.markdown("#### Zone Reference Map")
+        m2 = make_map(s["lat"], s["lon"], s["zoom"], "Dark (Night)", s["zones"], s["bbox"])
+        st_folium(m2, width=None, height=430, returned_objects=[])
 
-# ══ REPORTS ══
-elif view == "📋 Reports":
-    st.markdown('<div class="main-title">📋 Reports & Exports</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-title">Generate compliance, stewardship, and operational reports</div>', unsafe_allow_html=True)
+# AGRIFI LAND
+elif view == "AgriFI Land":
+    st.markdown('<div class="main-title">AgriFI Land - Southwest Nigeria</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-title">SWAgCo Land Utilization Agreement - 15,000 ha across 4 States</div>', unsafe_allow_html=True)
     st.markdown("---")
+    zone_map = {"Ogun State":"agrifi_ogun","Ekiti State":"agrifi_ekiti","Oyo State":"agrifi_oyo","Ondo State":"agrifi_ondo"}
+    zname = st.selectbox("Select Zone", list(zone_map.keys()))
+    site = SITES[zone_map[zname]]
+    tab1,tab2,tab3 = st.tabs(["Zone Map","Crop Health (NDVI)","Change Detection"])
+    with tab1:
+        bm2 = st.selectbox("Base Map", list(BASEMAPS.keys()), index=0, key="agrifi_bm")
+        bm = BASEMAPS[bm2]
+        if bm["tiles"] in ["CartoDB dark_matter","OpenStreetMap"]: m = folium.Map(location=[site["lat"],site["lon"]], zoom_start=site["zoom"], tiles=bm["tiles"])
+        else:
+            m = folium.Map(location=[site["lat"],site["lon"]], zoom_start=site["zoom"], tiles=None)
+            folium.TileLayer(tiles=bm["tiles"], attr=bm["attr"], max_zoom=21).add_to(m)
+        bb = site["bbox"]
+        folium.Rectangle(bounds=[[bb[1],bb[0]],[bb[3],bb[2]]], color="#4CAF50", fill=True, fill_opacity=0.1, weight=2).add_to(m)
+        folium.Marker([site["lat"],site["lon"]], icon=folium.Icon(color="green",icon="leaf",prefix="fa"), tooltip=zname).add_to(m)
+        st_folium(m, width=None, height=430, returned_objects=[])
+        st.markdown('<div class="alert-box">State proxy boundary active. Plot coordinates pending from SWAgCo.</div>', unsafe_allow_html=True)
+    with tab2:
+        ca,cb = st.columns([1,2])
+        with ca:
+            mb = st.slider("Months",1,6,2,key=f"mb_{zname}"); cl=st.slider("Cloud %",10,60,30,key=f"cl_{zname}")
+            if st.button("Fetch Crop Health",key=f"btn_{zname}"):
+                d2=datetime.now().strftime("%Y-%m-%d"); d1=(datetime.now()-timedelta(days=30*mb)).strftime("%Y-%m-%d")
+                with st.spinner("Querying..."):items=search_s2(site["bbox"],d1,d2,cl)
+                if not items: cb.warning("No imagery.")
+                else:
+                    with st.spinner("Computing..."): ndvi,dt=compute_ndvi(items[0],site["bbox"])
+                    if ndvi is not None:
+                        with cb:
+                            st.pyplot(ndvi_fig(ndvi,f"Date: {dt}",site["name"])); plt.close()
+                            v=stats(ndvi); c1,c2,c3,c4=st.columns(4)
+                            c1.metric("Mean NDVI",f"{v.get('mean',0):.3f}"); c2.metric("Healthy",f"{v.get('healthy',0):.1f}%")
+                            c3.metric("Stressed",f"{v.get('stressed',0):.1f}%"); c4.metric("Bare",f"{v.get('bare',0):.1f}%")
+                            if v.get("healthy",0)>40: st.markdown('<div class="ok-box">NIRSAL Compliance: Healthy vegetation > 40% threshold. Verified.</div>', unsafe_allow_html=True)
+                            else: st.markdown(f'<div class="alert-box">Below 40% NIRSAL threshold. Investigate.</div>', unsafe_allow_html=True)
+        with cb:
+            if "fetch_done" not in st.session_state: st.info("Click 'Fetch Crop Health' to load data.")
+    with tab3:
+        c1,c2=st.columns(2)
+        with c1: bef=st.slider("Before",3,12,6,key=f"bef_{zname}")
+        with c2: aft=st.slider("After",0,4,1,key=f"aft_{zname}")
+        if st.button("Run Change Detection",key=f"chg_{zname}"):
+            now=datetime.now(); bbox=site["bbox"]
+            with st.spinner("Fetching..."):
+                ib=search_s2(bbox,(now-timedelta(days=30*(bef+2))).strftime("%Y-%m-%d"),(now-timedelta(days=30*bef)).strftime("%Y-%m-%d"),40)
+                ia=search_s2(bbox,(now-timedelta(days=30*(aft+2))).strftime("%Y-%m-%d"),(now-timedelta(days=30*aft)).strftime("%Y-%m-%d"),40)
+            if not ib or not ia: st.warning("Imagery not available.")
+            else:
+                with st.spinner("Computing..."): nb,db=compute_ndvi(ib[0],bbox); na,da=compute_ndvi(ia[0],bbox)
+                if nb is not None and na is not None:
+                    st.pyplot(change_fig(nb,na,f"{site['name']} ({db} to {da})")); plt.close()
+                    loss=float(np.mean((na-nb)<-0.2)*100); gain=float(np.mean((na-nb)>0.2)*100)
+                    st.metric("Loss",f"{loss:.1f}%"); st.metric("Gain",f"{gain:.1f}%")
+                    if loss>10: st.markdown(f'<div class="alert-box">ENCROACHMENT ALERT: {loss:.1f}% loss. Flag for NIRSAL.</div>', unsafe_allow_html=True)
+                    else: st.markdown('<div class="ok-box">No significant encroachment. Land stable.</div>', unsafe_allow_html=True)
 
-    st.markdown("### Report Templates")
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown('<div class="site-badge">⛪ ASESE CAMPUS</div>', unsafe_allow_html=True)
-        st.markdown("**Monthly Stewardship Report**")
-        st.caption("Infrastructure status, vegetation health, perimeter integrity — formatted for LoveWorld leadership review.")
-        st.button("📄 Generate Asese Report", key="asese_report")
-
-        st.markdown("---")
-        st.markdown("**Security Perimeter Report**")
-        st.caption("Boundary change log, anomaly detection summary.")
-        st.button("📄 Generate Perimeter Report", key="perimeter_report")
-
-    with col2:
-        st.markdown('<div class="site-badge">🌾 AGRIFI LAND</div>', unsafe_allow_html=True)
-        st.markdown("**NIRSAL Compliance Report**")
-        st.caption("Input verification, crop health index, treated vs untreated zone mapping — formatted for NIRSAL submission.")
-        st.button("📄 Generate NIRSAL Report", key="nirsal_report")
-
-        st.markdown("---")
-        st.markdown("**AfDB Quarterly Report**")
-        st.caption("Land utilization summary, yield estimation, change detection log — formatted for AfDB reporting.")
-        st.button("📄 Generate AfDB Report", key="afdb_report")
-
+# REPORTS
+elif view == "Reports":
+    st.markdown('<div class="main-title">Reports & Exports</div>', unsafe_allow_html=True)
     st.markdown("---")
-    st.markdown("### Data Export")
-    st.markdown("Export raw satellite data for external GIS analysis.")
-    c1, c2, c3 = st.columns(3)
-    c1.button("📦 Export GeoJSON — Boundaries")
-    c2.button("📦 Export NDVI Raster (.tif)")
-    c3.button("📦 Export Change Map (.tif)")
-
+    c1,c2=st.columns(2)
+    with c1:
+        st.markdown('<div class="site-badge">ASESE CAMPUS</div>', unsafe_allow_html=True)
+        st.button("Generate Asese Stewardship Report")
+        st.button("Export Building Footprints (GeoJSON)")
+    with c2:
+        st.markdown('<div class="site-badge">AGRIFI LAND</div>', unsafe_allow_html=True)
+        st.button("Generate NIRSAL Compliance Report")
+        st.button("Generate AfDB Quarterly Report")
     st.markdown("---")
-    st.markdown("### Monitoring Schedule")
-    st.markdown("""
-| Frequency | Task | Sites |
+    st.markdown("""| Frequency | Task | Sites |
 |---|---|---|
-| Every 5 days | Sentinel-2 new pass available | Both |
-| Monthly | NDVI summary + change detection | Both |
-| Quarterly | Full compliance report pack | AgriFI |
-| Event-triggered | Boundary / perimeter alert | Both |
-""")
+| Every 5 days | Sentinel-2 new pass | Both |
+| Monthly | NDVI + change detection | Both |
+| Quarterly | Compliance report | AgriFI |
+| On-demand | Building footprint refresh | Asese |""")
