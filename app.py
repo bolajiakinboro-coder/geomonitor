@@ -35,14 +35,58 @@ st.markdown("""
 SITES = {
     "asese": {
         "name": "Christ Embassy Asese Campus", "label": "LoveWorld HQ",
-        "lat": 6.7600, "lon": 3.4310, "zoom": 16, "color": "#C9A84C", "icon": "⛪",
+        "lat": 6.7600, "lon": 3.4310, "zoom": 17, "color": "#C9A84C", "icon": "⛪",
         "bbox": [3.4260, 6.7550, 3.4370, 6.7660],
         "zones": [
-            {"name": "Omnia Hotels & Suites",        "lat": 6.7624, "lon": 3.4300, "type": "infrastructure"},
-            {"name": "Pinnacle Mall",                 "lat": 6.7632, "lon": 3.4282, "type": "infrastructure"},
-            {"name": "Meeting Bays (1-4)",            "lat": 6.7577, "lon": 3.4326, "type": "event"},
-            {"name": "Crystal Palace / Healing Dome", "lat": 6.7580, "lon": 3.4295, "type": "event"},
-            {"name": "Amphitheater (20,000 cap)",     "lat": 6.7570, "lon": 3.4340, "type": "event"},
+            {"name": "Omnia Hotel",        "lat": 6.76258, "lon": 3.42756, "type": "infrastructure"},
+            {"name": "Omnia Towers Hotel", "lat": 6.76224, "lon": 3.42921, "type": "infrastructure"},
+            {"name": "Pinnacle Mall",      "lat": 6.76234, "lon": 3.42912, "type": "infrastructure"},
+            {"name": "Meeting Bays (1-4)","lat": 6.75600, "lon": 3.43431, "type": "event"},
+        ],
+        "buildings": [
+            {
+                "name": "Omnia Hotel",
+                "color": "#C9A84C", "fill": "#C9A84C",
+                "corners": [
+                    (6.76282, 3.42567),
+                    (6.76222, 3.42950),
+                    (6.76231, 3.42907),
+                    (6.76282, 3.42567),
+                ]
+            },
+            {
+                "name": "Omnia Towers Hotel",
+                "color": "#7EC8E3", "fill": "#7EC8E3",
+                "corners": [
+                    (6.76222, 3.42950),
+                    (6.76230, 3.42966),
+                    (6.76219, 3.42893),
+                    (6.76225, 3.42889),
+                    (6.76222, 3.42950),
+                ]
+            },
+            {
+                "name": "Pinnacle Mall",
+                "color": "#FF6B35", "fill": "#FF6B35",
+                "corners": [
+                    (6.76234, 3.42944),
+                    (6.76233, 3.42880),
+                    (6.76231, 3.42907),
+                    (6.76236, 3.42917),
+                    (6.76234, 3.42944),
+                ]
+            },
+            {
+                "name": "Meeting Bays Area (Bays 1-4)",
+                "color": "#4CAF50", "fill": "#4CAF50",
+                "corners": [
+                    (6.75600, 3.43431),
+                    (6.75611, 3.43494),
+                    (6.75409, 3.43494),
+                    (6.75409, 3.43391),
+                    (6.75600, 3.43431),
+                ]
+            },
         ],
         "objectives": ["Infrastructure tracking", "Green cover", "Perimeter security"]
     },
@@ -131,7 +175,7 @@ def stats(arr):
     v = arr[arr > -0.5]
     return {"mean": float(np.mean(v)), "healthy": float(np.mean(v>0.4)*100), "stressed": float(np.mean((v>0.1)&(v<=0.4))*100), "bare": float(np.mean(v<=0.1)*100)} if len(v) else {}
 
-def make_map(lat, lon, zoom, basemap_key, zones=[], bbox=None, buildings=None, show_bldgs=False):
+def make_map(lat, lon, zoom, basemap_key, zones=[], bbox=None, buildings=None, show_bldgs=False, site_key=None):
     bm = BASEMAPS[basemap_key]
     if bm["tiles"] in ["CartoDB dark_matter", "OpenStreetMap"]:
         m = folium.Map(location=[lat,lon], zoom_start=zoom, tiles=bm["tiles"])
@@ -140,13 +184,26 @@ def make_map(lat, lon, zoom, basemap_key, zones=[], bbox=None, buildings=None, s
         folium.TileLayer(tiles=bm["tiles"], attr=bm["attr"], name=basemap_key, max_zoom=21).add_to(m)
     for z in zones:
         c = "#C9A84C" if z["type"]=="infrastructure" else "#7EC8E3"
-        folium.CircleMarker([z["lat"],z["lon"]], radius=10, color=c, fill=True, fill_opacity=0.85, tooltip=z["name"], popup=folium.Popup(f"<b>{z['name']}</b>", max_width=200)).add_to(m)
+        folium.CircleMarker([z["lat"],z["lon"]], radius=8, color=c, fill=True, fill_opacity=0.85, tooltip=z["name"], popup=folium.Popup(f"<b>{z['name']}</b>", max_width=200)).add_to(m)
     if bbox:
         folium.Rectangle(bounds=[[bbox[1],bbox[0]],[bbox[3],bbox[2]]], color="#C9A84C", fill=False, weight=2, dash_array="8 4", tooltip="Monitoring perimeter").add_to(m)
+    # Draw ground-truth building polygons if available
+    if site_key and site_key in SITES and "buildings" in SITES[site_key]:
+        for b in SITES[site_key]["buildings"]:
+            folium.Polygon(
+                locations=b["corners"],
+                color=b["color"],
+                fill=True,
+                fill_color=b["fill"],
+                fill_opacity=0.35,
+                weight=2.5,
+                tooltip=f"📍 {b['name']} — Ground-truth GPS corners"
+            ).add_to(m)
+    # OSM building footprints overlay
     if show_bldgs and buildings:
         blist, _ = parse_buildings(buildings)
         for b in blist:
-            folium.Polygon(locations=b["coords"], color="#FF6B35", fill=True, fill_color="#FF6B35", fill_opacity=0.45, weight=1.5, tooltip=f"Building: {b['name']} | Floors: {b['levels']}").add_to(m)
+            folium.Polygon(locations=b["coords"], color="#ffffff", fill=True, fill_color="#ffffff", fill_opacity=0.2, weight=1, tooltip=f"OSM: {b['name']}").add_to(m)
     folium.LayerControl().add_to(m)
     return m
 
@@ -209,7 +266,7 @@ elif view == "Asese Campus":
                 st.session_state.bdata = fetch_buildings(s["lat"], s["lon"])
                 if st.session_state.bdata:
                     _, st.session_state.bcount = parse_buildings(st.session_state.bdata)
-        m = make_map(s["lat"], s["lon"], s["zoom"], bm_choice, s["zones"], s["bbox"], st.session_state.bdata if show_b else None, show_b)
+        m = make_map(s["lat"], s["lon"], s["zoom"], bm_choice, s["zones"], s["bbox"], st.session_state.bdata if show_b else None, show_b, site_key="asese")
         st_folium(m, width=None, height=530, returned_objects=[])
         if show_b and st.session_state.bcount > 0:
             st.markdown(f'<div class="ok-box">Buildings loaded: <b>{st.session_state.bcount} structures</b> mapped on campus. Tap any orange polygon for details.</div>', unsafe_allow_html=True)
@@ -263,7 +320,7 @@ elif view == "Asese Campus":
 
     with tab4:
         st.markdown("#### Zone Reference Map")
-        m2 = make_map(s["lat"], s["lon"], s["zoom"], "Dark (Night)", s["zones"], s["bbox"])
+        m2 = make_map(s["lat"], s["lon"], s["zoom"], "Dark (Night)", s["zones"], s["bbox"], site_key="asese")
         st_folium(m2, width=None, height=430, returned_objects=[])
 
 # AGRIFI LAND
