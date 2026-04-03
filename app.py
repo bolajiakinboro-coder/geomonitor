@@ -39,7 +39,7 @@ SITES = {
         "lat": 6.7600, "lon": 3.4310, "zoom": 17, "color": "#C9A84C", "icon": "⛪",
         "bbox": [3.4260, 6.7550, 3.4370, 6.7660],
         "zones": [
-            {"name": "Omnia Hotel",        "lat": 6.76258, "lon": 3.42756, "type": "infrastructure"},
+            {"name": "Omnia Hotel",        "lat": 6.76270, "lon": 3.42940, "type": "infrastructure"},
             {"name": "Omnia Towers Hotel", "lat": 6.76224, "lon": 3.42921, "type": "infrastructure"},
             {"name": "Pinnacle Mall",      "lat": 6.76234, "lon": 3.42912, "type": "infrastructure"},
             {"name": "Meeting Bays (1-4)","lat": 6.75600, "lon": 3.43431, "type": "event"},
