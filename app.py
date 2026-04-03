@@ -49,13 +49,13 @@ SITES = {
                 "name": "Omnia Hotel",
                 "color": "#C9A84C", "fill": "#C9A84C",
                 "corners": [
-                    (6.76240, 3.42820),
-                    (6.76255, 3.42870),
-                    (6.76231, 3.42907),
-                    (6.76222, 3.42850),
-                    (6.76240, 3.42820),
+                    (6.76280, 3.42920),
+                    (6.76280, 3.42960),
+                    (6.76260, 3.42960),
+                    (6.76260, 3.42920),
+                    (6.76280, 3.42920),
                 ],
-                "note": "EST — corners need field verification"
+                "note": "Confirmed — 6.7627 / 3.4294"
             },
             {
                 "name": "Omnia Towers Hotel",
@@ -94,16 +94,16 @@ SITES = {
                 "note": "Confirmed"
             },
             {
-                "name": "Healing School (HS)",
+                "name": "Healing Dome",
                 "color": "#9C27B0", "fill": "#9C27B0",
                 "corners": [
-                    (6.75549, 3.42855),
-                    (6.75549, 3.42895),
-                    (6.75519, 3.42895),
-                    (6.75519, 3.42855),
-                    (6.75549, 3.42855),
+                    (6.75890, 3.42800),
+                    (6.75890, 3.42760),
+                    (6.75850, 3.42760),
+                    (6.75850, 3.42800),
+                    (6.75890, 3.42800),
                 ],
-                "note": "EST — verify on site"
+                "note": "Confirmed — 6.7587 / 3.4278"
             },
         ],
         "objectives": ["Infrastructure tracking", "Green cover", "Perimeter security"]
@@ -309,7 +309,7 @@ elif view == "Asese Campus":
         st_folium(m, width=None, height=530, returned_objects=[])
         if show_b and st.session_state.bcount > 0:
             st.markdown(f'<div class="ok-box">Buildings loaded: <b>{st.session_state.bcount} structures</b> mapped on campus. Tap any orange polygon for details.</div>', unsafe_allow_html=True)
-        st.markdown("**Legend:** 🟡 Omnia Hotel (EST) &nbsp; 🔵 Omnia Towers (confirmed) &nbsp; 🟠 Pinnacle Mall (confirmed) &nbsp; 🟢 Bays Area (confirmed) &nbsp; 🟣 Healing School (EST)")
+        st.markdown("**Legend:** 🟡 Omnia Hotel &nbsp; 🔵 Omnia Towers &nbsp; 🟠 Pinnacle Mall &nbsp; 🟢 Bays Area &nbsp; 🟣 Healing Dome")
         st.markdown('<div class="info-box">💡 <b>Tap anywhere on the map</b> to get the exact GPS coordinates of that point. Use this to correct building corners — tap the actual corner of a building on the satellite, copy the coordinates, send to Claude.</div>', unsafe_allow_html=True)
 
     with tab2:
