@@ -1,5 +1,6 @@
 import streamlit as st
 import folium
+from folium.plugins import MousePosition, MeasureControl
 from streamlit_folium import st_folium
 import pystac_client
 import planetary_computer
@@ -48,11 +49,13 @@ SITES = {
                 "name": "Omnia Hotel",
                 "color": "#C9A84C", "fill": "#C9A84C",
                 "corners": [
-                    (6.76282, 3.42567),
-                    (6.76222, 3.42950),
+                    (6.76240, 3.42820),
+                    (6.76255, 3.42870),
                     (6.76231, 3.42907),
-                    (6.76282, 3.42567),
-                ]
+                    (6.76222, 3.42850),
+                    (6.76240, 3.42820),
+                ],
+                "note": "EST — corners need field verification"
             },
             {
                 "name": "Omnia Towers Hotel",
@@ -63,7 +66,8 @@ SITES = {
                     (6.76219, 3.42893),
                     (6.76225, 3.42889),
                     (6.76222, 3.42950),
-                ]
+                ],
+                "note": "Confirmed"
             },
             {
                 "name": "Pinnacle Mall",
@@ -74,7 +78,8 @@ SITES = {
                     (6.76231, 3.42907),
                     (6.76236, 3.42917),
                     (6.76234, 3.42944),
-                ]
+                ],
+                "note": "Confirmed"
             },
             {
                 "name": "Meeting Bays Area (Bays 1-4)",
@@ -85,7 +90,20 @@ SITES = {
                     (6.75409, 3.43494),
                     (6.75409, 3.43391),
                     (6.75600, 3.43431),
-                ]
+                ],
+                "note": "Confirmed"
+            },
+            {
+                "name": "Healing School (HS)",
+                "color": "#9C27B0", "fill": "#9C27B0",
+                "corners": [
+                    (6.75549, 3.42855),
+                    (6.75549, 3.42895),
+                    (6.75519, 3.42895),
+                    (6.75519, 3.42855),
+                    (6.75549, 3.42855),
+                ],
+                "note": "EST — verify on site"
             },
         ],
         "objectives": ["Infrastructure tracking", "Green cover", "Perimeter security"]
@@ -182,14 +200,32 @@ def make_map(lat, lon, zoom, basemap_key, zones=[], bbox=None, buildings=None, s
     else:
         m = folium.Map(location=[lat,lon], zoom_start=zoom, tiles=None)
         folium.TileLayer(tiles=bm["tiles"], attr=bm["attr"], name=basemap_key, max_zoom=21).add_to(m)
+
+    # Coordinate display — shows lat/lon as you move
+    MousePosition(
+        position="bottomleft",
+        separator=" | ",
+        prefix="📍",
+        lat_formatter="function(num) {return L.Util.formatNum(num, 6);}",
+        lng_formatter="function(num) {return L.Util.formatNum(num, 6);}",
+    ).add_to(m)
+
+    # Click to get coordinates
+    m.add_child(folium.LatLngPopup())
+
+    # Measure tool
+    MeasureControl(position="topright", primary_length_unit="meters", secondary_length_unit="kilometers").add_to(m)
+
     for z in zones:
         c = "#C9A84C" if z["type"]=="infrastructure" else "#7EC8E3"
         folium.CircleMarker([z["lat"],z["lon"]], radius=8, color=c, fill=True, fill_opacity=0.85, tooltip=z["name"], popup=folium.Popup(f"<b>{z['name']}</b>", max_width=200)).add_to(m)
     if bbox:
         folium.Rectangle(bounds=[[bbox[1],bbox[0]],[bbox[3],bbox[2]]], color="#C9A84C", fill=False, weight=2, dash_array="8 4", tooltip="Monitoring perimeter").add_to(m)
-    # Draw ground-truth building polygons if available
+
+    # Ground-truth building polygons
     if site_key and site_key in SITES and "buildings" in SITES[site_key]:
         for b in SITES[site_key]["buildings"]:
+            note = b.get("note", "")
             folium.Polygon(
                 locations=b["corners"],
                 color=b["color"],
@@ -197,13 +233,16 @@ def make_map(lat, lon, zoom, basemap_key, zones=[], bbox=None, buildings=None, s
                 fill_color=b["fill"],
                 fill_opacity=0.35,
                 weight=2.5,
-                tooltip=f"📍 {b['name']} — Ground-truth GPS corners"
+                tooltip=f"📍 {b['name']}",
+                popup=folium.Popup(f"<b>{b['name']}</b><br><small>{note}</small>", max_width=200)
             ).add_to(m)
+
     # OSM building footprints overlay
     if show_bldgs and buildings:
         blist, _ = parse_buildings(buildings)
         for b in blist:
-            folium.Polygon(locations=b["coords"], color="#ffffff", fill=True, fill_color="#ffffff", fill_opacity=0.2, weight=1, tooltip=f"OSM: {b['name']}").add_to(m)
+            folium.Polygon(locations=b["coords"], color="#ffffff", fill=True, fill_color="#ffffff", fill_opacity=0.15, weight=1, tooltip=f"OSM: {b['name']}").add_to(m)
+
     folium.LayerControl().add_to(m)
     return m
 
@@ -270,7 +309,8 @@ elif view == "Asese Campus":
         st_folium(m, width=None, height=530, returned_objects=[])
         if show_b and st.session_state.bcount > 0:
             st.markdown(f'<div class="ok-box">Buildings loaded: <b>{st.session_state.bcount} structures</b> mapped on campus. Tap any orange polygon for details.</div>', unsafe_allow_html=True)
-        st.markdown("**Legend:** 🟡 Infrastructure &nbsp;&nbsp; 🔵 Event zones &nbsp;&nbsp; 🟠 Building footprints")
+        st.markdown("**Legend:** 🟡 Omnia Hotel (EST) &nbsp; 🔵 Omnia Towers (confirmed) &nbsp; 🟠 Pinnacle Mall (confirmed) &nbsp; 🟢 Bays Area (confirmed) &nbsp; 🟣 Healing School (EST)")
+        st.markdown('<div class="info-box">💡 <b>Tap anywhere on the map</b> to get the exact GPS coordinates of that point. Use this to correct building corners — tap the actual corner of a building on the satellite, copy the coordinates, send to Claude.</div>', unsafe_allow_html=True)
 
     with tab2:
         st.markdown("#### Vegetation Cover Index (NDVI)")
